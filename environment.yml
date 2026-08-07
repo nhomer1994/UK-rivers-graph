@@ -4,9 +4,8 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  - geopandas      
-  - shapely
-  - pyyaml
+  - geopandas>=0.14.0  # Safely delivers underlying GDAL, PROJ, and GEOS binaries
+  - shapely>=2.0.0
   - pip
   - pip:
-      - -r requirements.txt 
+      - -r requirements.txt
