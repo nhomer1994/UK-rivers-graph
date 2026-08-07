@@ -1,0 +1,12 @@
+name: uk-river-pipeline
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - geopandas      
+  - shapely
+  - pyyaml
+  - pip
+  - pip:
+      - -r requirements.txt 

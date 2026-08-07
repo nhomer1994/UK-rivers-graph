@@ -1,0 +1,11 @@
+# config.yaml.example
+spatial_processing:
+  # The strict bounding box around mainland UK to trim OSM noise
+  uk_bbox: [50.0, -8.0, 60.8, 2.0] # Min Lat, Min Lon, Max Lat, Max Lon
+  max_snap_distance_degrees: 0.005 
+
+monitoring_stations:
+  - id: "E2115"
+    name: "River Thames at Reading"
+  - id: "4003"
+    name: "River Severn at Bewdley"
