@@ -1,3 +1,9 @@
+# Data files
+data/raw/
+data/processed/*.csv
+data/processed/*.shp
+data/processed/*.geojson
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
