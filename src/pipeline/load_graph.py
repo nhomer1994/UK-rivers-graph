@@ -3,27 +3,28 @@ import pandas as pd
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-# Load the AuraDB credentials from your Codespace environment secrets
+# Force clean reload of active workspace secrets
 load_dotenv()
 
 URI = os.getenv("NEO4J_URI")
 USER = os.getenv("NEO4J_USER")
 PASSWORD = os.getenv("NEO4J_PASSWORD")
 
-# Safe batch size to prevent hitting memory limits on the cloud Free Tier
-BATCH_SIZE = 5000
+# Smaller batch size keeps execution memory light for the Aura Free tier
+BATCH_SIZE = 1000
 
 def get_driver():
-    """Initializes the secure Neo4j Bolt driver connection."""
+    """Initializes a thread-safe connection to the Neo4j instance."""
     if not all([URI, USER, PASSWORD]):
-        raise ValueError("Missing database configuration environment variables in .env")
+        raise ValueError("Missing authentication variables. Please re-run secrets injection.")
     return GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
-def load_nodes(session):
-    """Loads the HydroNode structures in batches."""
-    print("Loading Hydro Nodes into AuraDB...")
-    df = pd.read_csv("data/processed/hydro_nodes.csv")
-    records = df.to_dict(orient="records")
+def load_nodes_streaming(session):
+    """Streams HydroNode records from disk in lightweight explicit chunks."""
+    print("Initiating Stream-Ingestion of Hydro Nodes...")
+    
+    # Read the CSV as a generator to keep Codespace memory footprint low
+    csv_reader = pd.read_csv("data/processed/hydro_nodes.csv", chunksize=BATCH_SIZE)
     
     query = """
     UNWIND $batch AS row
@@ -31,16 +32,23 @@ def load_nodes(session):
     ON CREATE SET n.location = point({latitude: toFloat(row.latitude), longitude: toFloat(row.longitude)})
     """
     
-    for i in range(0, len(records), BATCH_SIZE):
-        batch = records[i:i+BATCH_SIZE]
-        session.run(query, batch=batch)
-    print(f"Successfully loaded {len(df)} unique HydroNode records.")
+    total_loaded = 0
+    for chunk in csv_reader:
+        # Convert only the current chunk slice into a list of records
+        batch_payload = chunk.to_dict(orient="records")
+        
+        # Execute explicitly inside a write transaction
+        session.run(query, batch=batch_payload)
+        
+        total_loaded += len(batch_payload)
+        print(f"   [PROGRESS] Ingested {total_loaded} unique nodes into the cloud...")
 
-def load_edges(session):
-    """Loads the linear river relationships in batches."""
-    print("Loading River FLOWS_INTO relationships into AuraDB...")
-    df = pd.read_csv("data/processed/hydro_edges.csv")
-    records = df.to_dict(orient="records")
+    print(f"Node loading complete! Total nodes: {total_loaded}")
+
+def load_edges_streaming(session):
+    """Streams and builds river flow segments in explicit chunks."""
+    print("Initiating Stream-Ingestion of River FLOWS_INTO relationships...")
+    csv_reader = pd.read_csv("data/processed/hydro_edges.csv", chunksize=BATCH_SIZE)
     
     query = """
     UNWIND $batch AS row
@@ -54,16 +62,19 @@ def load_edges(session):
     }]->(downstream)
     """
     
-    for i in range(0, len(records), BATCH_SIZE):
-        batch = records[i:i+BATCH_SIZE]
-        session.run(query, batch=batch)
-    print(f"Successfully loaded {len(df)} linear flow segments.")
+    total_loaded = 0
+    for chunk in csv_reader:
+        batch_payload = chunk.to_dict(orient="records")
+        session.run(query, batch=batch_payload)
+        total_loaded += len(batch_payload)
+        print(f"   [PROGRESS] Built {total_loaded} river flow links...")
 
-def load_wtws(session):
-    """Loads and links the Treatment Assets in batches."""
-    print("Loading and linking OpenStreetMap Treatment Plants...")
-    df = pd.read_csv("data/processed/snapped_wtws.csv")
-    records = df.to_dict(orient="records")
+    print(f"Relationship loading complete! Total segments: {total_loaded}")
+
+def load_wtws_streaming(session):
+    """Streams and maps the OpenStreetMap treatment assets."""
+    print("Connecting OpenStreetMap infrastructure assets...")
+    csv_reader = pd.read_csv("data/processed/snapped_wtws.csv", chunksize=BATCH_SIZE)
     
     query = """
     UNWIND $batch AS row
@@ -79,20 +90,23 @@ def load_wtws(session):
     CREATE (p)-[:CONNECTED_TO]->(n)
     """
     
-    for i in range(0, len(records), BATCH_SIZE):
-        batch = records[i:i+BATCH_SIZE]
-        session.run(query, batch=batch)
-    print(f"Successfully uploaded and linked {len(df)} infrastructure assets.")
+    total_loaded = 0
+    for chunk in csv_reader:
+        batch_payload = chunk.to_dict(orient="records")
+        session.run(query, batch=batch_payload)
+        total_loaded += len(batch_payload)
+        print(f"   [PROGRESS] Mapped {total_loaded} infrastructure facilities...")
+
+    print(f"Asset linking complete!")
 
 def run_pipeline():
     driver = get_driver()
     with driver.session() as session:
-        # Step-by-step ingestion cascade
-        load_nodes(session)
-        load_edges(session)
-        load_wtws(session)
+        load_nodes_streaming(session)
+        load_edges_streaming(session)
+        load_wtws_streaming(session)
     driver.close()
-    print("\n🎉 INGESTION PIPELINE FINISHED! Your UK River Graph is live in the cloud.")
+    print("\nLIVE GRAPH ARCHITECTURE SYNCHRONISED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     run_pipeline()
