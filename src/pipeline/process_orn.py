@@ -1,12 +1,22 @@
+# This dataset is intentionally topology-only.
+# We preserve LineString start/end points as HydroNodes and
+# FLOWS_INTO relationships, while retaining the original
+# GeoPackage separately for detailed spatial analysis.
+
 import os
+from pathlib import Path
 import yaml
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, LineString, GeometryCollection
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+
+
 def load_config():
     """Loads the spatial parameters from the config.yaml file."""
-    with open("config.yaml", "r") as f:
+    with CONFIG_PATH.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 def process_hydro_network():
@@ -15,8 +25,8 @@ def process_hydro_network():
     max_dist = config["spatial_processing"]["max_snap_distance_degrees"]
 
     # Locate the extracted GeoPackage file
-    raw_dir = "data/raw"
-    processed_dir = "data/processed"
+    raw_dir = PROJECT_ROOT / "src/pipeline/data/raw"
+    processed_dir = PROJECT_ROOT / "src/pipeline/data/processed"
     os.makedirs(processed_dir, exist_ok=True)
     gpkg_files = [f for f in os.listdir(raw_dir) if f.endswith(".gpkg")]
     if not gpkg_files:

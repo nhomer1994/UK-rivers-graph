@@ -1,13 +1,17 @@
 import os
 import time
+from pathlib import Path
 import yaml
 import requests
 import json
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+
+
 def load_config():
     """Loads the spatial parameters from the config.yaml file."""
-    config_path = "config.yaml"
-    with open(config_path, "r") as f:
+    with CONFIG_PATH.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 def build_overpass_query(bbox):

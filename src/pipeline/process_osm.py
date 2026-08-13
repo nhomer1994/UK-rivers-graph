@@ -1,13 +1,18 @@
 import os
 import json
+from pathlib import Path
 import yaml
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+
+
 def load_config():
     """Loads the spatial parameters from the config.yaml file."""
-    with open("config.yaml", "r") as f:
+    with CONFIG_PATH.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 def process_and_snap_wtws():

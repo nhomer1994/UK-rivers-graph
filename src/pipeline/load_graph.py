@@ -138,7 +138,7 @@ def run_pipeline():
         load_wtws_streaming(session)
         
     driver.close()
-    print("\n🚀 LIVE GRAPH ARCHITECTURE SYNCHRONISED SUCCESSFULLY!")
+    print("\nLIVE GRAPH ARCHITECTURE SYNCHRONISED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     run_pipeline()

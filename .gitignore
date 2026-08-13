@@ -1,8 +1,5 @@
 # Data files
-data/raw/
-data/processed/*.csv
-data/processed/*.shp
-data/processed/*.geojson
+src/pipeline/data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
