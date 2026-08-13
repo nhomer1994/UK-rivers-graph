@@ -19,6 +19,17 @@ def get_driver():
         raise ValueError("Missing authentication variables. Please re-run secrets injection.")
     return GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
+def initialize_schema(session):
+    """Creates unique constraints to prevent duplicates and enable high-speed indexes."""
+    print("Enforcing database uniqueness constraints...")
+    
+    # Ensures fast O(1) lookups for MATCH and MERGE operations
+    session.run("CREATE CONSTRAINT unique_hydro_node IF NOT EXISTS FOR (n:HydroNode) REQUIRE n.id IS UNIQUE;")
+    session.run("CREATE CONSTRAINT unique_treatment_plant IF NOT EXISTS FOR (p:TreatmentPlant) REQUIRE p.id IS UNIQUE;")
+    
+    # Wait briefly or call db.awaitConnectivity to ensure index propagation (optional but safe)
+    print("Schema constraints confirmed.")
+
 def load_nodes_streaming(session):
     """Streams HydroNode records from disk in lightweight explicit chunks."""
     print("Initiating Stream-Ingestion of Hydro Nodes...")
@@ -54,14 +65,14 @@ def load_edges_streaming(session):
     UNWIND $batch AS row
     MATCH (upstream:HydroNode {id: row.from_node_id})
     MATCH (downstream:HydroNode {id: row.to_node_id})
-    CREATE (upstream)-[:FLOWS_INTO {
-        name: row.river_name,
-        streamOrder: toInteger(row.stream_order),
-        cabaId: row.caba_id,
-        lengthKm: toFloat(row.length_km)
-    }]->(downstream)
+    MERGE (upstream)-[r:FLOWS_INTO]->(downstream)
+    ON CREATE SET 
+        r.name = row.river_name,
+        r.streamOrder = toInteger(row.stream_order),
+        r.cabaId = row.caba_id,
+        r.lengthKm = toFloat(row.length_km)
     """
-    
+
     total_loaded = 0
     for chunk in csv_reader:
         batch_payload = chunk.to_dict(orient="records")
@@ -87,9 +98,9 @@ def load_wtws_streaming(session):
         
     WITH p, row
     MATCH (n:HydroNode {id: row.nearest_river_node_id})
-    CREATE (p)-[:CONNECTED_TO]->(n)
+    MERGE (p)-[:CONNECTED_TO]->(n)
     """
-    
+
     total_loaded = 0
     for chunk in csv_reader:
         batch_payload = chunk.to_dict(orient="records")
@@ -98,6 +109,39 @@ def load_wtws_streaming(session):
         print(f"   [PROGRESS] Mapped {total_loaded} infrastructure facilities...")
 
     print(f"Asset linking complete!")
+
+
+def clear_database(session):
+    """Wipes old data from the workspace to ensure a clean slate."""
+    print("Purging old graph data from the database...")
+    # DETACH DELETE removes all nodes and their connected relationships at once
+    session.run("MATCH (n) DETACH DELETE n")
+
+def initialize_schema(session):
+    """Enforces unique constraints to allow fast O(1) lookups and MERGE optimization."""
+    print("Enforcing database uniqueness constraints...")
+    session.run("CREATE CONSTRAINT unique_hydro_node IF NOT EXISTS FOR (n:HydroNode) REQUIRE n.id IS UNIQUE;")
+    session.run("CREATE CONSTRAINT unique_treatment_plant IF NOT EXISTS FOR (p:TreatmentPlant) REQUIRE p.id IS UNIQUE;")
+
+def run_pipeline():
+    driver = get_driver()
+    with driver.session() as session:
+        # Clear database first for a completely clean deploy
+        # ONLY INCLUDE THIS TO WIPE THE DATABASE AND RE-UPLOAD
+        clear_database(session)
+        
+        # Build indexes and unique constraints immediately after
+        initialize_schema(session)
+        # Stream data sequentially from disk
+        load_nodes_streaming(session)
+        load_edges_streaming(session)
+        load_wtws_streaming(session)
+        
+    driver.close()
+    print("\n🚀 LIVE GRAPH ARCHITECTURE SYNCHRONISED SUCCESSFULLY!")
+
+if __name__ == "__main__":
+    run_pipeline()
 
 def run_pipeline():
     driver = get_driver()
